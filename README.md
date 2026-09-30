@@ -230,42 +230,39 @@ docker compose up -d --build
 
 ### Автоматический деплой (Blueprint)
 
+Сервисы в `render.yaml`:
+
+| Сервис            | Тип       | Plan    | Описание                          |
+|-------------------|-----------|---------|-----------------------------------|
+| stock-guardian-api | web      | Free    | FastAPI API + фронтенд           |
+| stock-guardian-cron | cron    | Free    | Запуск check_alerts каждую минуту |
+| stock-guardian-redis | keyvalue | Free   | Redis для Pub/Sub                 |
+| stock-guardian-db | database | Free    | PostgreSQL                        |
+
+> **Важно:** Background Worker (`celery ...`) не используется на Render —
+> Celery Beat заменён Cron Job, который вызывает `check_alerts()` напрямую.
+> Это позволяет развернуть проект полностью на бесплатном тарифе.
+
 1. Закоммитьте `render.yaml` в корень репозитория
 2. Откройте [Render Dashboard](https://dashboard.render.com) → **New > Blueprint**
-3. Подключите ваш Git репозиторий (GitHub/GitLab/Bitbucket)
+3. Подключите ваш Git репозиторий
 4. Review автоопределяемых ресурсов и нажмите **Deploy Blueprint**
 
-Blueprint создаст:
+### Ручной деплой (без Blueprint)
 
-| Сервис            | Тип       | Описание                          |
-|-------------------|-----------|-----------------------------------|
-| stock-guardian-api | web       | FastAPI API + фронтенд            |
-| stock-guardian-worker | worker  | Celery worker для обработки сигналов |
-| stock-guardian-cron | cron      | Periodic task (каждую минуту)     |
-| stock-guardian-redis | keyvalue | Redis для Pub/Sub и Celery broker|
-| stock-guardian-db | database  | PostgreSQL                        |
-
-5. После деплоя:
-   - Фронтенд доступен по публичному URL вашего web сервиса
-   - API документация: `https://<your-service>.onrender.com/docs`
-   - Health check: `https://<your-service>.onrender.com/health`
-
-### Ручной деплой (альтернатива)
-
-Если не хотите использовать Blueprint:
-
-1. Создайте **Web Service** с:
+1. Создайте **PostgreSQL Database** → имя `stock-guardian-db`, план Free
+2. Создайте **Key Value (Redis)** → имя `stock-guardian-redis`, план Free
+3. Создайте **Web Service**:
    - Runtime: Docker
-   - Build Command: `docker build -t stock-guardian .`
-   - Start Command: `uvicorn app.main:app --host 0.0.0.0 --port $PORT`
-2. Создайте **Background Worker** с тем же образом и командой:
-   - `celery -A app.workers.quotes worker --loglevel=info`
-3. Создайте **Redis Key Value** и **Postgres Database** в Render
-4. Добавьте переменные окружения:
-   - `DATABASE_URL` → из Postgres
-   - `REDIS_URL` → из Redis Key Value
-   - `BROKER_URL` → из Redis Key Value
-   - `RESULT_BACKEND` → из Redis Key Value
+   - Plan: Free
+   - Start Command: оставьте пустым (берётся из Dockerfile CMD)
+   - переменные окружения: `DATABASE_URL`, `REDIS_URL` из сервисов выше
+4. Создайте **Cron Job**:
+   - Runtime: Docker
+   - Plan: Free
+   - Schedule: `*/1 * * * *` (каждую минуту)
+   - Start Command: `python scripts/run_check.py`
+   - переменные окружения: `DATABASE_URL`, `REDIS_URL`
 
 ### Environment Variables
 
@@ -273,9 +270,15 @@ Blueprint создаст:
 |------------------|-----------------------------------|-------------------------------------|
 | `DATABASE_URL`   | PostgreSQL connection string      | `postgresql://user:pass@host:5432/db`|
 | `REDIS_URL`      | Redis for Pub/Sub                 | `redis://:pass@host:6379`           |
-| `BROKER_URL`     | Celery broker URL                 | `redis://:pass@host:6379`           |
-| `RESULT_BACKEND` | Celery result backend             | `redis://:pass@host:6379`           |
 | `PORT`           | Порт для uvicorn (авто от Render) | `8000`                              |
+
+### Debug endpoints
+
+| Метод | URL | Описание |
+|-------|-----|----------|
+| GET  | `/health` | Health check |
+| GET  | `/debug/redis` | Проверка Redis connectivity и env vars |
+| POST | `/debug/trigger` | Ручной запуск check_alerts |
 
 ## Тестирование
 

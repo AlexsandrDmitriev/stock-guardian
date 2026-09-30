@@ -1,6 +1,5 @@
 import asyncio
 import json
-import subprocess
 import urllib.request
 
 import websockets
@@ -10,7 +9,10 @@ API = "http://localhost:8080"
 
 
 async def main():
-    async with websockets.connect(f"ws://localhost:8080/ws/{USER_ID}") as ws:
+    ws_url = f"ws://localhost:8080/ws/{USER_ID}"
+    print(f"Connecting to {ws_url}...")
+
+    async with websockets.connect(ws_url) as ws:
         print("WebSocket connected")
 
         # Create alert (NVDA stub returns 1000, target=1000 triggers "above")
@@ -27,21 +29,25 @@ async def main():
             method="POST",
         )
         resp = urllib.request.urlopen(req)
-        print("Alert created:", resp.read().decode()[:60], "...")
+        alert = json.loads(resp.read())
+        print(f"Alert created: {alert['id']}")
 
-        # Trigger worker task manually
-        subprocess.run([
-            "docker", "exec", "stock-guardian-api-1",
-            "python", "-c",
-            "from app.workers.quotes import check_alerts; check_alerts.delay()",
-        ], timeout=10)
-        print("Task triggered, waiting for notification...")
+        # Trigger check_alerts via HTTP debug endpoint
+        trigger_req = urllib.request.Request(
+            f"{API}/debug/trigger",
+            method="POST",
+        )
+        resp = urllib.request.urlopen(trigger_req)
+        result = json.loads(resp.read())
+        print(f"Trigger: {result['status']}")
 
+        # Wait for notification via WebSocket
+        print("Waiting for notification...")
         try:
             msg = await asyncio.wait_for(ws.recv(), timeout=10)
-            print("NOTIFY:", msg)
+            print(f"NOTIFY: {msg}")
         except asyncio.TimeoutError:
-            print("No notification received within 10s")
+            print("TIMEOUT — no notification received")
 
 
 asyncio.run(main())
