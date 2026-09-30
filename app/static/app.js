@@ -96,5 +96,25 @@ alertForm.addEventListener("submit", async (e) => {
   }
 });
 
+// Check Now button — manually trigger check_alerts
+document.getElementById("checkNow").addEventListener("click", async () => {
+  const btn = document.getElementById("checkNow");
+  btn.disabled = true;
+  btn.textContent = "Checking…";
+  try {
+    const res = await fetch(`${API_BASE}/debug/trigger`, { method: "POST" });
+    const data = await res.json();
+    btn.textContent = "Checked";
+    setTimeout(() => {
+      btn.textContent = "Check Now";
+      btn.disabled = false;
+    }, 2000);
+  } catch (err) {
+    btn.textContent = "Check Now";
+    btn.disabled = false;
+  }
+  loadAlerts();
+});
+
 loadAlerts();
 connectWebSocket("12345678-1234-5678-1234-567812345678");
