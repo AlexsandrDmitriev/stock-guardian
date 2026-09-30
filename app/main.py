@@ -33,3 +33,37 @@ async def shutdown() -> None:
 @app.get("/health")
 async def health() -> dict:
     return {"status": "ok"}
+
+
+@app.get("/debug/redis")
+async def debug_redis(request: Request) -> dict:
+    redis = request.app.state.redis
+    info = {
+        "redis_url_configured": bool(settings.redis_url),
+        "broker_url_configured": bool(settings.broker_url),
+        "result_backend_configured": bool(settings.result_backend),
+        "database_url_configured": bool(settings.database_url),
+    }
+    try:
+        await redis.ping()
+        info["redis_ping"] = "ok"
+    except Exception as e:
+        info["redis_ping"] = f"error: {e}"
+
+    from app.services.alert_service import AlertService
+    service = AlertService(redis)
+    alerts = await service.list_active()
+    info["active_alerts_count"] = len(alerts)
+    return info
+
+
+@app.post("/debug/trigger")
+async def debug_trigger() -> dict:
+    from app.workers.quotes import check_alerts
+    import asyncio
+
+    try:
+        await asyncio.to_thread(check_alerts)
+        return {"status": "triggered"}
+    except Exception as e:
+        return {"status": "error", "detail": str(e)}
