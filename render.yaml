@@ -63,7 +63,7 @@ services:
     runtime: docker
     plan: free
     schedule: "*/1 * * * *"
-    command: python -c "from app.workers.quotes import check_alerts; check_alerts()"
+    startCommand: python -c "from app.workers.quotes import check_alerts; check_alerts()"
     envVars:
       - key: DATABASE_URL
         fromDatabase:

@@ -1,9 +1,13 @@
+import asyncio
 import json
+import logging
 
 from celery import Celery
 from redis.asyncio import Redis
 
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 
 app = Celery(
@@ -40,7 +44,9 @@ async def _load_active_alerts() -> list:
     redis = Redis.from_url(settings.redis_url, decode_responses=True)
     try:
         service = AlertService(redis)
-        return await service.load_active_alerts()
+        alerts = await service.load_active_alerts()
+        logger.info("Loaded %d active alerts from Redis", len(alerts))
+        return alerts
     finally:
         await redis.aclose()
 
@@ -59,9 +65,8 @@ async def _deactivate(alert_id) -> None:
 
 @app.task(name="app.workers.quotes.check_alerts")
 def check_alerts() -> None:
-    import asyncio
-
     quotes = fetch_batch_prices()
+    logger.info("check_alerts started, quotes=%s", quotes)
 
     async def run() -> None:
         alerts = await _load_active_alerts()
@@ -77,12 +82,21 @@ def check_alerts() -> None:
                     else price <= alert.target_price
                 )
                 if hit:
+                    logger.info(
+                        "Alert %s triggered: %s hit %s", alert.id, alert.symbol, price
+                    )
                     await pub.publish(
                         str(alert.user_id),
                         json.dumps({"symbol": alert.symbol, "price": price}),
                     )
                     await _deactivate(alert.id)
+                else:
+                    logger.info(
+                        "Alert %s not triggered: %s=%s target=%s",
+                        alert.id, alert.symbol, price, alert.target_price,
+                    )
         finally:
             await pub.aclose()
 
     asyncio.run(run())
+    logger.info("check_alerts finished")
