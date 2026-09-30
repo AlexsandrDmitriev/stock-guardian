@@ -230,23 +230,39 @@ docker compose up -d --build
 
 ### Автоматический деплой (Blueprint)
 
-Сервисы в `render.yaml`:
+Сервисы в `render.yaml` — все на бесплатном тарифе:
 
-| Сервис            | Тип       | Plan    | Описание                          |
-|-------------------|-----------|---------|-----------------------------------|
-| stock-guardian-api | web      | Free    | FastAPI API + фронтенд           |
-| stock-guardian-cron | cron    | Free    | Запуск check_alerts каждую минуту |
-| stock-guardian-redis | keyvalue | Free   | Redis для Pub/Sub                 |
-| stock-guardian-db | database | Free    | PostgreSQL                        |
+| Сервис             | Тип        | Plan  | Описание                    |
+|--------------------|------------|-------|-----------------------------|
+| stock-guardian-api | web        | Free  | FastAPI API + фронтенд      |
+| stock-guardian-redis | keyvalue | Free  | Redis для Pub/Sub           |
+| stock-guardian-db  | database   | Free  | PostgreSQL                  |
 
-> **Важно:** Background Worker (`celery ...`) не используется на Render —
-> Celery Beat заменён Cron Job, который вызывает `check_alerts()` напрямую.
-> Это позволяет развернуть проект полностью на бесплатном тарифе.
+> **Важно:** Celery worker и Cron Job на Render — платные сервисы.
+> Вместо них используется **GitHub Actions** как планировщик (бесплатно
+> для публичных репозиториев: 2 000 минут/мес).
 
 1. Закоммитьте `render.yaml` в корень репозитория
 2. Откройте [Render Dashboard](https://dashboard.render.com) → **New > Blueprint**
-3. Подключите ваш Git репозиторий
-4. Review автоопределяемых ресурсов и нажмите **Deploy Blueprint**
+3. Подключите ваш Git репозиторий (GitHub/GitLab/Bitbucket)
+4. Review ресурсов и нажмите **Deploy Blueprint**
+5. После создания скопируйте URL вашего web сервиса (например `https://stock-guardian-api-abc.onrender.com`)
+6. Добавьте GitHub переменную `RENDER_API_URL` (см. ниже)
+
+### GitHub Actions Scheduler (вместо Celery Beat)
+
+Чтобы `check_alerts` запускался каждю минуту бесплатно:
+
+1. В GitHub репозитории → **Settings** → **Variables** → **Actions** → **New repository variable**:
+   - **Name**: `RENDER_API_URL`
+   - **Value**: ваш Render URL без `https://`, например `stock-guardian-api-abc.onrender.com`
+
+2. Файл `.github/workflows/scheduler.yml` уже настроен — каждую минуту вызывает:
+   - `GET /health` (пробуждает спящий сервис)
+   - `POST /debug/trigger` (запускает проверку сигналов)
+
+> Free web service на Render засыпает после 15 мин бездействия.
+> GitHub Actions пробуждает его каждую минуту.
 
 ### Ручной деплой (без Blueprint)
 
@@ -257,12 +273,7 @@ docker compose up -d --build
    - Plan: Free
    - Start Command: оставьте пустым (берётся из Dockerfile CMD)
    - переменные окружения: `DATABASE_URL`, `REDIS_URL` из сервисов выше
-4. Создайте **Cron Job**:
-   - Runtime: Docker
-   - Plan: Free
-   - Schedule: `*/1 * * * *` (каждую минуту)
-   - Start Command: `python scripts/run_check.py`
-   - переменные окружения: `DATABASE_URL`, `REDIS_URL`
+4. Настройте GitHub Actions Scheduler (см. выше)
 
 ### Environment Variables
 

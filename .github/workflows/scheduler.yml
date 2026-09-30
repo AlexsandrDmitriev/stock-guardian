@@ -1,0 +1,17 @@
+name: Alert Check Scheduler
+
+on:
+  schedule:
+    - cron: "*/1 * * * *"  # every minute
+  workflow_dispatch:
+
+jobs:
+  check-alerts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake service and trigger check_alerts
+        run: |
+          echo "Health check:"
+          curl -sS https://${{ vars.RENDER_API_URL }}/health || echo "Service may be sleeping — will retry next minute"
+          echo "Triggering check_alerts..."
+          curl -sS -X POST https://${{ vars.RENDER_API_URL }}/debug/trigger || echo "Trigger failed — service may be sleeping"
