@@ -28,36 +28,9 @@ services:
       - key: PYTHONUNBUFFERED
         value: "1"
 
-  # Background worker: Celery worker for processing alerts
-  - type: worker
-    name: stock-guardian-worker
-    runtime: docker
-    plan: free
-    startCommand: celery -A app.workers.quotes worker --loglevel=info
-    envVars:
-      - key: DATABASE_URL
-        fromDatabase:
-          name: stock-guardian-db
-          property: connectionString
-      - key: REDIS_URL
-        fromService:
-          name: stock-guardian-redis
-          type: keyvalue
-          property: connectionString
-      - key: BROKER_URL
-        fromService:
-          name: stock-guardian-redis
-          type: keyvalue
-          property: connectionString
-      - key: RESULT_BACKEND
-        fromService:
-          name: stock-guardian-redis
-          type: keyvalue
-          property: connectionString
-      - key: PYTHONUNBUFFERED
-        value: "1"
-
-  # Cron job: periodic alert checking (replaces Celery Beat)
+  # Cron job: periodic alert checking (runs check_alerts every minute)
+  # NOTE: Celery does NOT run as a separate worker on Render free tier.
+  # The cron job calls check_alerts() directly — no broker needed at runtime.
   - type: cron
     name: stock-guardian-cron
     runtime: docker
@@ -70,16 +43,6 @@ services:
           name: stock-guardian-db
           property: connectionString
       - key: REDIS_URL
-        fromService:
-          name: stock-guardian-redis
-          type: keyvalue
-          property: connectionString
-      - key: BROKER_URL
-        fromService:
-          name: stock-guardian-redis
-          type: keyvalue
-          property: connectionString
-      - key: RESULT_BACKEND
         fromService:
           name: stock-guardian-redis
           type: keyvalue
