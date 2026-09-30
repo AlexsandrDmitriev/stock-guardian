@@ -1,0 +1,99 @@
+services:
+  # Web service: FastAPI API + frontend
+  - type: web
+    name: stock-guardian-api
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stock-guardian-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: stock-guardian-redis
+          type: keyvalue
+          property: connectionString
+      - key: BROKER_URL
+        fromService:
+          name: stock-guardian-redis
+          type: keyvalue
+          property: connectionString
+      - key: RESULT_BACKEND
+        fromService:
+          name: stock-guardian-redis
+          type: keyvalue
+          property: connectionString
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+  # Background worker: Celery worker for processing alerts
+  - type: worker
+    name: stock-guardian-worker
+    runtime: docker
+    plan: free
+    startCommand: celery -A app.workers.quotes worker --loglevel=info
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stock-guardian-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: stock-guardian-redis
+          type: keyvalue
+          property: connectionString
+      - key: BROKER_URL
+        fromService:
+          name: stock-guardian-redis
+          type: keyvalue
+          property: connectionString
+      - key: RESULT_BACKEND
+        fromService:
+          name: stock-guardian-redis
+          type: keyvalue
+          property: connectionString
+      - key: PYTHONUNBUFFERED
+        value: "1"
+
+  # Cron job: periodic alert checking (replaces Celery Beat)
+  - type: cron
+    name: stock-guardian-cron
+    runtime: docker
+    plan: free
+    schedule: "*/1 * * * *"
+    command: python -c "from app.workers.quotes import check_alerts; check_alerts()"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: stock-guardian-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          name: stock-guardian-redis
+          type: keyvalue
+          property: connectionString
+      - key: BROKER_URL
+        fromService:
+          name: stock-guardian-redis
+          type: keyvalue
+          property: connectionString
+      - key: RESULT_BACKEND
+        fromService:
+          name: stock-guardian-redis
+          type: keyvalue
+          property: connectionString
+
+  # Redis (Key Value) instance
+  - type: keyvalue
+    name: stock-guardian-redis
+    plan: free
+    ipAllowList:
+      - source: 0.0.0.0/0
+        description: allow-all
+
+databases:
+  # PostgreSQL database
+  - name: stock-guardian-db
+    plan: free

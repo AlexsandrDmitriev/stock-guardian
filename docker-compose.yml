@@ -1,0 +1,61 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8080:8000"
+    environment:
+      - DATABASE_URL=postgresql://stock:stock@db:5432/stock
+      - REDIS_URL=redis://redis:6379/0
+      - BROKER_URL=redis://redis:6379/1
+      - RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  worker:
+    build: .
+    command: celery -A app.workers.quotes worker -l info
+    environment:
+      - DATABASE_URL=postgresql://stock:stock@db:5432/stock
+      - REDIS_URL=redis://redis:6379/0
+      - BROKER_URL=redis://redis:6379/1
+      - RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  beat:
+    build: .
+    command: celery -A app.workers.quotes beat -l info
+    environment:
+      - DATABASE_URL=postgresql://stock:stock@db:5432/stock
+      - REDIS_URL=redis://redis:6379/0
+      - BROKER_URL=redis://redis:6379/1
+      - RESULT_BACKEND=redis://redis:6379/2
+    depends_on:
+      - db
+      - redis
+    restart: unless-stopped
+
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: stock
+      POSTGRES_PASSWORD: stock
+      POSTGRES_DB: stock
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
