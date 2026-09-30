@@ -220,11 +220,14 @@ docker compose up -d --build
 ### Демонстрация работы
 
 1. Откройте http://localhost:8080 в браузере
-2. Создайте сигнал: symbol=`NVDA`, target_price=`1000`, direction=`above`,
+2. Дождитесь статуса **"WebSocket: connected"** (индикатор становится зелёным)
+3. Создайте сигнал: symbol=`NVDA`, target_price=`1000`, direction=`above`,
    user_id=`12345678-1234-5678-1234-567812345678`
-3. Через 30 секунд worker проверит цены и, при срабатывании,
-   уведомление `NVDA hit 1000` появится в секции "Live Notifications"
-   в реальном времени через WebSocket
+4. Нажмите кнопку **"Check Now"** — сигнал проверится немедленно
+5. Уведомление `NVDA hit 1000` появится в секции "Live Notifications"
+
+> Для локального docker compose: Beat автоматически проверяет сигналы каждые 30с.
+> Для Render: используйте кнопку "Check Now", т.к. free tier сервисы спят.
 
 ## Деплой на Render
 
