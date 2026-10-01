@@ -1,6 +1,9 @@
 import asyncio
 import json
 import logging
+import os
+import tempfile
+from pathlib import Path
 
 from celery import Celery
 from redis.asyncio import Redis
@@ -8,6 +11,10 @@ from redis.asyncio import Redis
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+LAST_CHECK_FILE = os.environ.get(
+    "LAST_CHECK_FILE", str(Path(tempfile.gettempdir()) / "stock_guardian_last_check")
+)
 
 
 app = Celery(
@@ -33,8 +40,31 @@ app.conf.update(
 
 
 def fetch_batch_prices() -> dict[str, float]:
-    """Stub: replace with real broker API call."""
-    return {"NVDA": 1000.0, "AAPL": 200.0, "MSFT": 300.0}
+    """Fetch current quotes with simulated price movement.
+    
+    In production, replace with a real broker API call.
+    Prices are stored in Redis and drift slightly each call,
+    so alerts trigger automatically as prices cross thresholds.
+    """
+    from random import uniform
+
+    import redis as sync_redis
+
+    base_prices = {"NVDA": 995.0, "AAPL": 195.0, "MSFT": 295.0}
+    r = sync_redis.Redis.from_url(settings.redis_url, decode_responses=True)
+    try:
+        current = r.hgetall("stock_guardian:prices")
+        quotes: dict[str, float] = {}
+        for symbol, base in base_prices.items():
+            price = float(current[symbol]) if symbol in current else base
+            # Symmetric random walk so thresholds are crossed in both directions.
+            price += uniform(-1.5, 1.5)
+            quotes[symbol] = round(max(price, 0.01), 2)
+        r.hset("stock_guardian:prices", mapping={k: str(v) for k, v in quotes.items()})
+        logger.info("Quotes fetched: %s", quotes)
+        return quotes
+    finally:
+        r.close()
 
 
 async def _load_active_alerts() -> list:
@@ -87,7 +117,15 @@ def check_alerts() -> None:
                     )
                     await pub.publish(
                         str(alert.user_id),
-                        json.dumps({"symbol": alert.symbol, "price": price}),
+                        json.dumps(
+                            {
+                                "alert_id": str(alert.id),
+                                "symbol": alert.symbol,
+                                "price": price,
+                                "target_price": alert.target_price,
+                                "direction": alert.direction,
+                            }
+                        ),
                     )
                     await _deactivate(alert.id)
                 else:
@@ -99,4 +137,5 @@ def check_alerts() -> None:
             await pub.aclose()
 
     asyncio.run(run())
+    Path(LAST_CHECK_FILE).touch()
     logger.info("check_alerts finished")

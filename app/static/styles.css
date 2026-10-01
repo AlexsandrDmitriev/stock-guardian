@@ -91,6 +91,10 @@ button.secondary {
 
 .message { margin-top: 12px; font-size: 0.9rem; }
 
+.message.error { color: var(--danger); }
+
+#currentPrices { color: var(--muted); }
+
 table { width: 100%; border-collapse: collapse; }
 
 th, td { text-align: left; padding: 8px; border-bottom: 1px solid #334155; font-size: 0.9rem; }
@@ -113,4 +117,10 @@ button.danger {
   margin-bottom: 8px;
   border-radius: 6px;
   font-size: 0.9rem;
+}
+
+#notifications li.error {
+  background: rgba(248, 113, 113, 0.1);
+  border-left-color: var(--danger);
+  color: var(--danger);
 }

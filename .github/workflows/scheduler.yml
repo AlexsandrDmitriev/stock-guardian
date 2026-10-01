@@ -11,7 +11,14 @@ jobs:
     steps:
       - name: Wake service and trigger check_alerts
         run: |
-          echo "Health check:"
-          curl -sS https://${{ vars.RENDER_API_URL }}/health || echo "Service may be sleeping — will retry next minute"
-          echo "Triggering check_alerts..."
-          curl -sS -X POST https://${{ vars.RENDER_API_URL }}/debug/trigger || echo "Trigger failed — service may be sleeping"
+          set -euo pipefail
+          curl -sS --fail-with-body --max-time 120 https://${{ vars.RENDER_API_URL }}/health
+          echo
+          curl -sS --fail-with-body --max-time 180 -X POST https://${{ vars.RENDER_API_URL }}/debug/trigger
+          echo
+
+      - name: Verify checker freshness
+        run: |
+          set -euo pipefail
+          curl -sS --fail-with-body --max-time 60 https://${{ vars.RENDER_API_URL }}/debug/prices
+          echo

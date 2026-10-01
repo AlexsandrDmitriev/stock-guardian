@@ -35,13 +35,15 @@
           </select>
         </div>
         <div class="field">
-          <label for="userId">User ID</label>
+          <label for="userId">User ID (WebSocket listens as this ID)</label>
           <input type="text" id="userId" placeholder="12345678-1234-5678-1234-567812345678" required />
         </div>
         <button type="submit">Create</button>
       </form>
        <div id="formMessage" class="message"></div>
        <button id="checkNow" type="button" class="secondary">Check Now</button>
+       <div id="checkNowStatus" class="message"></div>
+       <div id="currentPrices" class="message"></div>
      </section>
 
     <section class="card">

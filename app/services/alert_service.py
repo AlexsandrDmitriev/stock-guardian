@@ -1,4 +1,3 @@
-import json
 from uuid import UUID
 
 from redis.asyncio import Redis
